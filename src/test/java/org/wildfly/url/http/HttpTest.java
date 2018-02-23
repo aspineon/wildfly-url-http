@@ -28,7 +28,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 import io.undertow.server.handlers.PathHandler;
-import io.undertow.testutils.DefaultServer;
 import io.undertow.util.HeaderValues;
 import io.undertow.util.HttpString;
 import org.junit.Assert;
@@ -38,15 +37,19 @@ import org.junit.runner.RunWith;
 import org.wildfly.security.auth.client.AuthenticationConfiguration;
 import org.wildfly.security.auth.client.AuthenticationContext;
 import org.wildfly.security.auth.client.MatchRule;
+import org.wildfly.url.http.server.TestingServer;
 
-@RunWith(DefaultServer.class)
+/**
+ * @author Jan Kalina <jkalina@redhat.com>
+ */
+@RunWith(TestingServer.class)
 public class HttpTest {
 
     @BeforeClass
     public static void setup() throws IOException {
         URL.setURLStreamHandlerFactory(new WildflyURLStreamHandlerFactory());
 
-        DefaultServer.setRootHandler(new PathHandler()
+        TestingServer.setRootHandler(new PathHandler()
                 .addExactPath("header", exchange -> {
                     Assert.assertEquals(0, exchange.getRequestHeaders().get("RequiredNoValueHeader", 0).length());
                     HeaderValues values = exchange.getRequestHeaders().get("TestingRequestHeader");
@@ -84,7 +87,7 @@ public class HttpTest {
      */
     @Test
     public void testHeader() throws Exception {
-        URL url = new URL(DefaultServer.getDefaultServerURL() + "/header");
+        URL url = new URL(TestingServer.getDefaultServerURL() + "/header");
 
         HttpURLConnection conn = (HttpURLConnection) url.openConnection();
         conn.setRequestProperty("RequiredNoValueHeader", null);
@@ -103,11 +106,13 @@ public class HttpTest {
      */
     @Test
     public void testRedirect() throws Exception {
-        URL url = new URL(DefaultServer.getDefaultServerURL() + "/redirect?amount=2");
+        URL url = new URL(TestingServer.getDefaultServerURL() + "/redirect?amount=2");
 
         HttpURLConnection conn = (HttpURLConnection) url.openConnection();
         conn.setInstanceFollowRedirects(true);
 
+        Assert.assertEquals(200, conn.getResponseCode());
+        Assert.assertEquals("OK", conn.getResponseMessage());
         try (BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8))) {
             Assert.assertEquals("Finished", br.readLine());
         }
@@ -118,11 +123,13 @@ public class HttpTest {
      */
     @Test
     public void testRedirectDisabled() throws Exception {
-        URL url = new URL(DefaultServer.getDefaultServerURL() + "/redirect?amount=2");
+        URL url = new URL(TestingServer.getDefaultServerURL() + "/redirect?amount=2");
 
         HttpURLConnection conn = (HttpURLConnection) url.openConnection();
         conn.setInstanceFollowRedirects(false);
 
+        Assert.assertEquals(302, conn.getResponseCode());
+        Assert.assertEquals("Found", conn.getResponseMessage());
         try (BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8))) {
             Assert.assertEquals("Redirecting...", br.readLine());
         }
@@ -133,7 +140,7 @@ public class HttpTest {
      */
     @Test
     public void testPut() throws Exception {
-        URL url = new URL(DefaultServer.getDefaultServerURL() + "/put");
+        URL url = new URL(TestingServer.getDefaultServerURL() + "/put");
 
         HttpURLConnection conn = (HttpURLConnection) url.openConnection();
         conn.setRequestMethod("PUT");
@@ -147,7 +154,7 @@ public class HttpTest {
 
     @Test
     public void testBasicAuth() throws Exception {
-        URL url = new URL(DefaultServer.getDefaultServerURL() + "/basic-auth");
+        URL url = new URL(TestingServer.getDefaultServerURL() + "/basic-auth");
 
         AuthenticationContext.empty().with(
                 MatchRule.ALL.matchPort(url.getPort()).matchHost(url.getHost()).matchProtocol(url.getProtocol()),

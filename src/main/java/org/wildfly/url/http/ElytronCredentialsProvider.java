@@ -48,6 +48,11 @@ import org.wildfly.security.password.PasswordFactory;
 import org.wildfly.security.password.TwoWayPassword;
 import org.wildfly.security.password.spec.ClearPasswordSpec;
 
+/**
+ * Provider providing Elytron credentials to the Apache HTTP client
+ *
+ * @author Jan Kalina <jkalina@redhat.com>
+ */
 public class ElytronCredentialsProvider implements CredentialsProvider {
 
     static final ElytronCredentialsProvider INSTANCE = new ElytronCredentialsProvider();

@@ -52,6 +52,7 @@
         <version.org.wildfly.checkstyle-config>1.0.6.Final</version.org.wildfly.checkstyle-config>
         <version.org.kohsuke.metainf-services.metainf-services>1.7</version.org.kohsuke.metainf-services.metainf-services>
         <version.org.jboss.logging>3.3.2.Final</version.org.jboss.logging>
+        <version.io.undertow>2.0.0.Final</version.io.undertow>
 
         <test.level>INFO</test.level>
         <!-- Checkstyle configuration -->
@@ -187,14 +188,7 @@
         <dependency>
             <groupId>io.undertow</groupId>
             <artifactId>undertow-core</artifactId>
-            <version>2.0.0.Final</version>
-            <type>test-jar</type>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>io.undertow</groupId>
-            <artifactId>undertow-core</artifactId>
-            <version>2.0.0.Final</version>
+            <version>${version.io.undertow}</version>
             <scope>test</scope>
         </dependency>
     </dependencies>

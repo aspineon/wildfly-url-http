@@ -27,6 +27,7 @@ import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.net.URLConnection;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -50,6 +51,11 @@ import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
 
+/**
+ * {@link URLConnection} handling HTTP using Apache HTTP client
+ *
+ * @author Jan Kalina <jkalina@redhat.com>
+ */
 public class HttpClientURLConnection extends HttpURLConnection {
 
     private CloseableHttpClient client = null;
@@ -181,6 +187,15 @@ public class HttpClientURLConnection extends HttpURLConnection {
         }
 
         return response.getStatusLine().getStatusCode();
+    }
+
+    @Override
+    public String getResponseMessage() throws IOException {
+        if (response == null) {
+            doRequest();
+        }
+
+        return response.getStatusLine().getReasonPhrase();
     }
 
     @Override

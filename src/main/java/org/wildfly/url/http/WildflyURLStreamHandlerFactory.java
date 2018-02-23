@@ -26,6 +26,11 @@ import java.net.URLStreamHandlerFactory;
 
 import org.kohsuke.MetaInfServices;
 
+/**
+ * Factory registering URLStreamHandler for HTTP
+ *
+ * @author Jan Kalina <jkalina@redhat.com>
+ */
 @MetaInfServices(URLStreamHandlerFactory.class)
 public class WildflyURLStreamHandlerFactory implements URLStreamHandlerFactory {
 
