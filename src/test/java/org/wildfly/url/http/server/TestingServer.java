@@ -23,7 +23,6 @@ import static org.xnio.SslClientAuthMode.REQUESTED;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.Inet4Address;
 import java.net.InetSocketAddress;
 import java.security.KeyManagementException;
 import java.security.KeyStore;
@@ -38,7 +37,6 @@ import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.TrustManagerFactory;
 
-import io.undertow.UndertowOptions;
 import io.undertow.connector.ByteBufferPool;
 import io.undertow.protocols.ssl.UndertowXnioSsl;
 import io.undertow.server.DefaultByteBufferPool;
@@ -56,7 +54,6 @@ import org.xnio.ChannelListener;
 import org.xnio.ChannelListeners;
 import org.xnio.IoUtils;
 import org.xnio.OptionMap;
-import org.xnio.Options;
 import org.xnio.StreamConnection;
 import org.xnio.Xnio;
 import org.xnio.XnioWorker;
@@ -66,40 +63,29 @@ import org.xnio.channels.AcceptingChannel;
  * A class that starts a server before the test suite. By swapping out the root handler
  * tests can test various server functionality without continually starting and stopping the server.
  *
- * Based on DefaultServer from Undertow core tests.
- *
  * @author Jan Kalina
- * @author Stuart Douglas
  */
 public class TestingServer extends BlockJUnit4ClassRunner {
 
-    static final String DEFAULT = "default";
-    private static final int PROXY_OFFSET = 1111;
+    private static final String DEFAULT = "default";
 
     private static final ByteBufferPool BUFFER_POOL = new DefaultByteBufferPool(false, 100);
-    private static final ByteBufferPool SSL_BUFFER_POOL = new DefaultByteBufferPool(false, 100);
 
     private static boolean first = true;
-    private static OptionMap serverOptions;
-    private static OpenListener openListener;
-    private static ChannelListener acceptListener;
     private static XnioWorker worker;
     private static AcceptingChannel<? extends StreamConnection> server;
     private static AcceptingChannel<? extends StreamConnection> sslServer;
-    private static Xnio xnio;
 
     private static final String SERVER_KEY_STORE = "server.keystore";
     private static final String SERVER_TRUST_STORE = "server.truststore";
     private static final char[] STORE_PASSWORD = "password".toCharArray();
-
-    private static final boolean https = Boolean.getBoolean("test.https");
 
     private static final DelegatingHandler rootHandler = new DelegatingHandler();
 
     private static KeyStore loadKeyStore(final String name) throws IOException {
         final InputStream stream = TestingServer.class.getClassLoader().getResourceAsStream(name);
         if(stream == null) {
-            throw new RuntimeException("Could not load keystore");
+            throw new RuntimeException(String.format("Could not load KeyStore %s", name));
         }
         try {
             KeyStore loadedKeystore = KeyStore.getInstance("JKS");
@@ -163,49 +149,24 @@ public class TestingServer extends BlockJUnit4ClassRunner {
 
     @Override
     public void run(final RunNotifier notifier) {
-        runInternal(notifier);
-        super.run(notifier);
-    }
-
-    private static void runInternal(final RunNotifier notifier) {
         if (first) {
             first = false;
-            xnio = Xnio.getInstance("nio", TestingServer.class.getClassLoader());
+            Xnio xnio = Xnio.getInstance("nio", TestingServer.class.getClassLoader());
             try {
-                worker = xnio.createWorker(OptionMap.builder()
-                        .set(Options.WORKER_IO_THREADS, 8)
-                        .set(Options.CONNECTION_HIGH_WATER, 1000000)
-                        .set(Options.CONNECTION_LOW_WATER, 1000000)
-                        .set(Options.WORKER_TASK_CORE_THREADS, 30)
-                        .set(Options.WORKER_TASK_MAX_THREADS, 30)
-                        .set(Options.TCP_NODELAY, true)
-                        .set(Options.CORK, true)
-                        .getMap());
-
-                serverOptions = OptionMap.builder()
-                        .set(Options.TCP_NODELAY, true)
-                        .set(Options.BACKLOG, 1000)
-                        .set(Options.REUSE_ADDRESSES, true)
-                        .set(Options.BALANCING_TOKENS, 1)
-                        .set(Options.BALANCING_CONNECTIONS, 2)
-                        .getMap();
-
-                if (https) {
-                    final SSLContext serverContext = createSSLContext(loadKeyStore(SERVER_KEY_STORE), loadKeyStore(SERVER_TRUST_STORE));
-                    UndertowXnioSsl ssl = new UndertowXnioSsl(worker.getXnio(), OptionMap.EMPTY, SSL_BUFFER_POOL, serverContext);
-                    openListener = new HttpOpenListener(
-                            BUFFER_POOL, OptionMap.create(UndertowOptions.BUFFER_PIPELINED_DATA, true));
-                    acceptListener = ChannelListeners.openListenerAdapter(openListener);
-                    server = ssl.createSslConnectionServer(worker, new InetSocketAddress(getHostAddress("default"), 7777 + PROXY_OFFSET), acceptListener, serverOptions);
-                    server.getAcceptSetter().set(acceptListener);
-                    server.resumeAccepts();
-                } else {
-                    openListener = new HttpOpenListener(BUFFER_POOL, OptionMap.EMPTY);
-                    acceptListener = ChannelListeners.openListenerAdapter(openListener);
-                    server = worker.createStreamConnectionServer(new InetSocketAddress(Inet4Address.getByName(getHostAddress(DEFAULT)), getHostPort(DEFAULT)), acceptListener, serverOptions);
-                }
+                worker = xnio.createWorker(OptionMap.EMPTY);
+                OpenListener openListener = new HttpOpenListener(BUFFER_POOL, OptionMap.EMPTY);
                 openListener.setRootHandler(rootHandler);
+                ChannelListener acceptListener = ChannelListeners.openListenerAdapter(openListener);
+
+                server = worker.createStreamConnectionServer(new InetSocketAddress(getHostAddress(DEFAULT), getHostPort(DEFAULT)), acceptListener, OptionMap.EMPTY);
                 server.resumeAccepts();
+
+                SSLContext serverContext = createSSLContext(loadKeyStore(SERVER_KEY_STORE), loadKeyStore(SERVER_TRUST_STORE));
+                UndertowXnioSsl ssl = new UndertowXnioSsl(worker.getXnio(), OptionMap.EMPTY, serverContext);
+                OptionMap sslOptions = OptionMap.create(SSL_CLIENT_AUTH_MODE, REQUESTED);
+                sslServer = ssl.createSslConnectionServer(worker, new InetSocketAddress(getHostAddress(DEFAULT), getHostSSLPort(DEFAULT)), acceptListener, sslOptions);
+                sslServer.resumeAccepts();
+
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
@@ -213,11 +174,12 @@ public class TestingServer extends BlockJUnit4ClassRunner {
                 @Override
                 public void testRunFinished(final Result result) throws Exception {
                     server.close();
-                    stopSSLServer();
+                    sslServer.close();
                     worker.shutdown();
                 }
             });
         }
+        super.run(notifier);
     }
 
     /**
@@ -227,88 +189,6 @@ public class TestingServer extends BlockJUnit4ClassRunner {
      */
     public static void setRootHandler(HttpHandler handler) {
         rootHandler.next = handler;
-    }
-
-    /**
-     * Start the SSL server using the default settings.
-     * <p/>
-     * The default settings initialise a server with a key for 'localhost' and a trust store containing the certificate of a
-     * single client, the client authentication mode is set to 'REQUESTED' to optionally allow progression to CLIENT-CERT
-     * authentication.
-     */
-    public static void startSSLServer() throws IOException {
-        startSSLServer(getServerSslContext(), OptionMap.create(SSL_CLIENT_AUTH_MODE, REQUESTED));
-    }
-
-    public static SSLContext getServerSslContext() {
-        try {
-            return createSSLContext(loadKeyStore(SERVER_KEY_STORE), loadKeyStore(SERVER_TRUST_STORE));
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    /**
-     * Start the SSL server using the default ssl context and the provided option map
-     * <p/>
-     * The default settings initialise a server with a key for 'localhost' and a trust store containing the certificate of a
-     * single client. Client cert mode is not set by default
-     */
-    public static void startSSLServer(OptionMap optionMap, ChannelListener openListener) throws IOException {
-        SSLContext serverContext = createSSLContext(loadKeyStore(SERVER_KEY_STORE), loadKeyStore(SERVER_TRUST_STORE));
-        startSSLServer(serverContext, optionMap, openListener);
-    }
-
-    /**
-     * Start the SSL server using a custom SSLContext with additional options to pass to the JsseXnioSsl instance.
-     *
-     * @param context - The SSLContext to use for JsseXnioSsl initialisation.
-     * @param options - Additional options to be passed to the JsseXnioSsl, this will be merged with the default options where
-     *                applicable.
-     */
-    public static void startSSLServer(final SSLContext context, final OptionMap options) throws IOException {
-        startSSLServer(context, options, acceptListener);
-    }
-
-    /**
-     * Start the SSL server using a custom SSLContext with additional options to pass to the JsseXnioSsl instance.
-     *
-     * @param context - The SSLContext to use for JsseXnioSsl initialisation.
-     * @param options - Additional options to be passed to the JsseXnioSsl, this will be merged with the default options where
-     *                applicable.
-     */
-    public static void startSSLServer(final SSLContext context, final OptionMap options, ChannelListener openListener) throws IOException {
-        startSSLServer(context, options, openListener, getHostSSLPort(DEFAULT));
-    }
-
-
-    /**
-     * Start the SSL server using a custom SSLContext with additional options to pass to the JsseXnioSsl instance.
-     *
-     * @param context - The SSLContext to use for JsseXnioSsl initialisation.
-     * @param options - Additional options to be passed to the JsseXnioSsl, this will be merged with the default options where
-     *                applicable.
-     */
-    public static void startSSLServer(final SSLContext context, final OptionMap options, ChannelListener openListener, int port) throws IOException {
-        OptionMap combined = OptionMap.builder().addAll(serverOptions).addAll(options)
-                .set(Options.USE_DIRECT_BUFFERS, true)
-                .getMap();
-
-        UndertowXnioSsl ssl = new UndertowXnioSsl(worker.getXnio(), OptionMap.EMPTY, SSL_BUFFER_POOL, context);
-        sslServer = ssl.createSslConnectionServer(worker, new InetSocketAddress(getHostAddress("default"), port), openListener, combined);
-        sslServer.getAcceptSetter().set(openListener);
-        sslServer.resumeAccepts();
-    }
-
-    /**
-     * Stop any previously created SSL server - as this is for test clean up calling when no SSL server is running will not
-     * cause an error.
-     */
-    public static void stopSSLServer() throws IOException {
-        if (sslServer != null) {
-            sslServer.close();
-            sslServer = null;
-        }
     }
 
     public static String getHostAddress(String serverName) {
@@ -321,14 +201,6 @@ public class TestingServer extends BlockJUnit4ClassRunner {
 
     public static int getHostSSLPort(String serverName) {
         return Integer.getInteger(serverName + ".server.sslPort", 7778);
-    }
-
-    public static OptionMap getUndertowOptions() {
-        return openListener.getUndertowOptions();
-    }
-
-    public static void setUndertowOptions(final OptionMap options) {
-        openListener.setUndertowOptions(OptionMap.builder().addAll(options).getMap());
     }
 
     /**

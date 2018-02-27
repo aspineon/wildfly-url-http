@@ -28,11 +28,14 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLConnection;
+import java.security.GeneralSecurityException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import javax.net.ssl.SSLContext;
 
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
@@ -50,13 +53,15 @@ import org.apache.http.client.methods.HttpUriRequest;
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
+import org.wildfly.security.SecurityFactory;
+import org.wildfly.security.auth.client.AuthenticationContext;
 
 /**
- * {@link URLConnection} handling HTTP using Apache HTTP client
+ * {@link URLConnection} handling HTTP/HTTPS using Apache HTTP client
  *
  * @author Jan Kalina <jkalina@redhat.com>
  */
-public class HttpClientURLConnection extends HttpURLConnection {
+class HttpClientURLConnection extends HttpURLConnection {
 
     private CloseableHttpClient client = null;
     private CloseableHttpResponse response;
@@ -110,11 +115,21 @@ public class HttpClientURLConnection extends HttpURLConnection {
                 .setRedirectsEnabled(getInstanceFollowRedirects())
                 .build();
 
-        client = HttpClientBuilder.create()
+        HttpClientBuilder builder = HttpClientBuilder.create()
                 .setDefaultCredentialsProvider(ElytronCredentialsProvider.INSTANCE)
-                .setDefaultRequestConfig(config)
-                .build();
+                .setDefaultRequestConfig(config);
 
+        if (uri.getScheme().equalsIgnoreCase("https")) {
+            try {
+                SecurityFactory<SSLContext> sslContextFactory = ElytronCredentialsProvider.client
+                        .getSSLContextFactory(uri, AuthenticationContext.captureCurrent(), null, null);
+                builder.setSSLContext(sslContextFactory.create());
+            } catch (GeneralSecurityException e) {
+                throw new IOException(e);
+            }
+        }
+
+        client = builder.build();
         response = client.execute(request);
     }
 
@@ -158,6 +173,23 @@ public class HttpClientURLConnection extends HttpURLConnection {
     }
 
     @Override
+    public void setFixedLengthStreamingMode(int contentLength) {
+        if (outputStream == null) {
+            outputStream = new ByteArrayOutputStream(contentLength);
+        }
+    }
+
+    @Override
+    public void setFixedLengthStreamingMode(long contentLength) {
+        if (contentLength > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException("Too long content length");
+        }
+        if (outputStream == null) {
+            outputStream = new ByteArrayOutputStream((int) contentLength);
+        }
+    }
+
+    @Override
     public InputStream getInputStream() throws IOException {
         if (response == null) {
             doRequest();
@@ -166,7 +198,7 @@ public class HttpClientURLConnection extends HttpURLConnection {
         int responseCode = response.getStatusLine().getStatusCode();
 
         if (responseCode >= 400) {
-            if (responseCode == 404 || responseCode == 410) {
+            if (responseCode == HTTP_NOT_FOUND || responseCode == HTTP_GONE) {
                 throw new FileNotFoundException(url.toString());
             } else {
                 throw new IOException("Server returned HTTP response code: " + responseCode + " for URL: " + getURL().toString());

@@ -25,7 +25,18 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLConnection;
 import java.nio.charset.StandardCharsets;
+import java.security.KeyStore;
+import java.security.cert.Certificate;
+import java.security.cert.X509Certificate;
 import java.util.List;
+
+import javax.net.ssl.KeyManager;
+import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.TrustManagerFactory;
+import javax.net.ssl.X509ExtendedKeyManager;
+import javax.net.ssl.X509TrustManager;
 
 import io.undertow.server.handlers.PathHandler;
 import io.undertow.util.HeaderValues;
@@ -34,9 +45,11 @@ import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.wildfly.security.SecurityFactory;
 import org.wildfly.security.auth.client.AuthenticationConfiguration;
 import org.wildfly.security.auth.client.AuthenticationContext;
 import org.wildfly.security.auth.client.MatchRule;
+import org.wildfly.security.ssl.SSLContextBuilder;
 import org.wildfly.url.http.server.TestingServer;
 
 /**
@@ -77,6 +90,13 @@ public class HttpTest {
                         exchange.getResponseSender().send("Unauthorized");
                     } else {
                         exchange.getResponseSender().send(authorization);
+                    }
+                })
+                .addExactPath("ssl-auth", exchange -> {
+                    Certificate[] certificates = exchange.getConnection().getSslSessionInfo().getPeerCertificates();
+                    for (Certificate certificate : certificates) {
+                        String name = ((X509Certificate)certificate).getSubjectDN().getName();
+                        exchange.getResponseSender().send("(" + name + ")");
                     }
                 })
         );
@@ -179,6 +199,66 @@ public class HttpTest {
             }
             return null;
         });
+    }
+
+    /**
+     * Test sending HEAD request with request and response headers
+     */
+    @Test
+    public void testSsl() throws Exception {
+        URL url = new URL(TestingServer.getDefaultServerSSLURL() + "/ssl-auth");
+
+        AuthenticationContext.empty().withSsl(
+                MatchRule.ALL.matchPort(url.getPort()).matchHost(url.getHost()).matchProtocol(url.getProtocol()),
+                getClientSslContext()
+        ).runExceptionAction(() -> {
+
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.connect();
+
+            try (BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8))) {
+                StringBuilder sb = new StringBuilder();
+                String line;
+                while ((line = br.readLine()) != null) {
+                    sb.append(line);
+                }
+                Assert.assertEquals("(CN=Test Client, OU=OU, O=Org, L=City, ST=State, C=GB)", sb.toString());
+            }
+            return null;
+        });
+    }
+
+    private SecurityFactory<SSLContext> getClientSslContext() throws Exception {
+        X509TrustManager trustManager = null;
+        X509ExtendedKeyManager keyManager = null;
+
+        KeyStore truststore = KeyStore.getInstance("JKS");
+        truststore.load(HttpTest.class.getClassLoader().getResourceAsStream("client.truststore"), "password".toCharArray());
+        TrustManagerFactory trustManagerFactory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+        trustManagerFactory.init(truststore);
+        for (TrustManager tm : trustManagerFactory.getTrustManagers()) {
+            if (tm instanceof X509TrustManager) {
+                trustManager = (X509TrustManager) tm;
+            }
+        }
+        if (trustManager == null) throw new IllegalStateException("No X509TrustManager provided");
+
+        KeyStore keystore = KeyStore.getInstance("JKS");
+        keystore.load(HttpTest.class.getClassLoader().getResourceAsStream("client.keystore"), "password".toCharArray());
+        KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
+        keyManagerFactory.init(keystore, "password".toCharArray());
+        for (KeyManager km : keyManagerFactory.getKeyManagers()) {
+            if (km instanceof X509ExtendedKeyManager) {
+                keyManager = (X509ExtendedKeyManager) km;
+            }
+        }
+        if (keyManager == null) throw new IllegalStateException("No X509ExtendedKeyManager provided");
+
+        SSLContextBuilder builder = new SSLContextBuilder();
+        builder.setClientMode(true);
+        builder.setTrustManager(trustManager);
+        builder.setKeyManager(keyManager);
+        return builder.build();
     }
 
 }

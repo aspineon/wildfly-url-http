@@ -53,11 +53,11 @@ import org.wildfly.security.password.spec.ClearPasswordSpec;
  *
  * @author Jan Kalina <jkalina@redhat.com>
  */
-public class ElytronCredentialsProvider implements CredentialsProvider {
+class ElytronCredentialsProvider implements CredentialsProvider {
 
     static final ElytronCredentialsProvider INSTANCE = new ElytronCredentialsProvider();
 
-    private static final AuthenticationContextConfigurationClient client = doPrivileged(AuthenticationContextConfigurationClient.ACTION);
+    static final AuthenticationContextConfigurationClient client = doPrivileged(AuthenticationContextConfigurationClient.ACTION);
 
     @Override
     public Credentials getCredentials(AuthScope authscope) {

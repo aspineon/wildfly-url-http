@@ -27,7 +27,7 @@ import java.net.URLStreamHandlerFactory;
 import org.kohsuke.MetaInfServices;
 
 /**
- * Factory registering URLStreamHandler for HTTP
+ * Factory registering {@link URLStreamHandler} for HTTP/HTTPS
  *
  * @author Jan Kalina <jkalina@redhat.com>
  */
@@ -44,7 +44,7 @@ public class WildflyURLStreamHandlerFactory implements URLStreamHandlerFactory {
         return null;
     }
 
-    static class HttpURLStreamHandler extends URLStreamHandler {
+    private static class HttpURLStreamHandler extends URLStreamHandler {
 
         @Override
         protected URLConnection openConnection(URL url) throws IOException {
