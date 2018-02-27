@@ -1,6 +1,12 @@
 WildFly URL handler for HTTP
 ============================
 
+This is module for WildFly, which ensure using Elytron AuthenticationContext
+for authentication, identity propagation and SSL.
+
+It is intended to be present in WildFly by default, but it can be installed
+into current version of WildFly using steps below.
+
 Compile
 -------
 
