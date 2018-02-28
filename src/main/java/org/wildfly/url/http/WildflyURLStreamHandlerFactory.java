@@ -24,14 +24,11 @@ import java.net.URLConnection;
 import java.net.URLStreamHandler;
 import java.net.URLStreamHandlerFactory;
 
-import org.kohsuke.MetaInfServices;
-
 /**
  * Factory registering {@link URLStreamHandler} for HTTP/HTTPS
  *
  * @author Jan Kalina <jkalina@redhat.com>
  */
-@MetaInfServices(URLStreamHandlerFactory.class)
 public class WildflyURLStreamHandlerFactory implements URLStreamHandlerFactory {
 
     private static URLStreamHandler httpHandler = new HttpURLStreamHandler();

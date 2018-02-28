@@ -66,18 +66,7 @@
     <build>
         <resources>
             <resource>
-                <directory>${project.build.sourceDirectory}</directory>
-                <includes>
-                    <include>**/*.properties</include>
-                </includes>
-                <filtering>true</filtering>
-            </resource>
-            <resource>
                 <directory>src/main/resources</directory>
-                <includes>
-                    <include>META-INF/LICENSE.txt</include>
-                </includes>
-                <filtering>true</filtering>
             </resource>
         </resources>
 
@@ -162,18 +151,6 @@
 
     <dependencies>
         <dependency>
-            <groupId>org.kohsuke.metainf-services</groupId>
-            <artifactId>metainf-services</artifactId>
-            <version>${version.org.kohsuke.metainf-services.metainf-services}</version>
-            <scope>compile</scope>
-        </dependency>
-        <dependency>
-            <groupId>junit</groupId>
-            <artifactId>junit</artifactId>
-            <version>${version.junit.junit}</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
             <groupId>org.apache.httpcomponents</groupId>
             <artifactId>httpclient</artifactId>
             <version>${version.org.apache.httpcomponents.httpclient}</version>
@@ -184,6 +161,12 @@
             <artifactId>wildfly-elytron</artifactId>
             <version>${version.org.wildfly.security.elytron}</version>
             <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <version>${version.junit.junit}</version>
+            <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>io.undertow</groupId>
