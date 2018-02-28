@@ -31,7 +31,7 @@
 
     <groupId>org.wildfly.url.http</groupId>
     <artifactId>wildfly-url-http</artifactId>
-    <version>1.0.1.Final-SNAPSHOT</version>
+    <version>1.0.1.Final</version>
 
     <name>WildFly HTTP URL schema handler</name>
     <description>URLStreamHandlerFactory implementation ensuring correct HTTP authentication for containers.</description>
