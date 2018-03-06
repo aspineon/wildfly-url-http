@@ -16,7 +16,7 @@
  *  limitations under the License.
  */
 
-package org.wildfly.url.http.server;
+package org.wildfly.url.http.utils;
 
 import static org.xnio.Options.SSL_CLIENT_AUTH_MODE;
 import static org.xnio.SslClientAuthMode.REQUESTED;
