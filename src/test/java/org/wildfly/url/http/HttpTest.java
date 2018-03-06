@@ -18,8 +18,11 @@
 
 package org.wildfly.url.http;
 
+import static java.net.HttpURLConnection.HTTP_NOT_MODIFIED;
+
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -28,6 +31,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.KeyStore;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
+import java.util.Date;
 import java.util.List;
 
 import javax.net.ssl.KeyManager;
@@ -41,6 +45,7 @@ import javax.net.ssl.X509TrustManager;
 import io.undertow.server.handlers.PathHandler;
 import io.undertow.util.HeaderValues;
 import io.undertow.util.HttpString;
+import org.apache.http.client.utils.DateUtils;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -81,6 +86,18 @@ public class HttpTest {
                 })
                 .addExactPath("put", exchange -> {
                     exchange.getResponseSender().send("Received: " + exchange.getRequestContentLength());
+                })
+                .addExactPath("get", exchange -> {
+                    Date modified = new Date(10000);
+                    exchange.getResponseHeaders().put(new HttpString("Last-Modified"), DateUtils.formatDate(modified));
+                    String ifmod = exchange.getRequestHeaders().getFirst("If-Modified-Since");
+                    if (ifmod != null) {
+                        if (! modified.after(DateUtils.parseDate(ifmod))) {
+                            exchange.setStatusCode(HTTP_NOT_MODIFIED);
+                            return;
+                        }
+                    }
+                    exchange.getResponseSender().send("Testing response");
                 })
                 .addExactPath("basic-auth", exchange -> {
                     String authorization = exchange.getRequestHeaders().getFirst("Authorization");
@@ -170,6 +187,35 @@ public class HttpTest {
         try (BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8))) {
             Assert.assertEquals("Received: 3", br.readLine());
         }
+    }
+
+    @Test
+    public void testModifiedSince() throws Exception {
+        URL url = new URL(TestingServer.getDefaultServerURL() + "/get");
+
+        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+        conn.setIfModifiedSince(5);
+        try (BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8))) {
+            Assert.assertEquals("Testing response", br.readLine());
+        }
+        Assert.assertEquals(10000, conn.getLastModified());
+        conn.disconnect();
+
+        HttpURLConnection conn2 = (HttpURLConnection) url.openConnection();
+        conn2.setIfModifiedSince(10000);
+        Assert.assertEquals(10000, conn2.getLastModified());
+        try (InputStream is = conn2.getInputStream()) {
+            Assert.assertEquals(-1, is.read());
+        }
+        conn2.disconnect();
+
+        HttpURLConnection conn3 = (HttpURLConnection) url.openConnection();
+        conn3.setIfModifiedSince(20000);
+        Assert.assertEquals(10000, conn3.getLastModified());
+        try (InputStream is = conn3.getInputStream()) {
+            Assert.assertEquals(-1, is.read());
+        }
+        conn3.disconnect();
     }
 
     @Test

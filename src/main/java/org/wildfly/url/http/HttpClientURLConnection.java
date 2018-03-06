@@ -18,6 +18,7 @@
 
 package org.wildfly.url.http;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -34,6 +35,7 @@ import java.net.UnknownHostException;
 import java.security.GeneralSecurityException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -54,6 +56,7 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.apache.http.client.methods.HttpTrace;
 import org.apache.http.client.methods.HttpUriRequest;
+import org.apache.http.client.utils.DateUtils;
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
@@ -117,6 +120,9 @@ class HttpClientURLConnection extends HttpURLConnection {
         HttpUriRequest request = getRequest(uri);
 
         // request headers
+        if (getIfModifiedSince() != 0) {
+            request.setHeader("If-Modified-Since", DateUtils.formatDate(new Date(getIfModifiedSince())));
+        }
         for (Map.Entry<String, List<String>> prop : getRequestProperties().entrySet()) {
             for (String value : prop.getValue()) {
                 request.addHeader(prop.getKey(), value);
@@ -226,6 +232,10 @@ class HttpClientURLConnection extends HttpURLConnection {
             } else {
                 throw new IOException("Server returned HTTP response code: " + responseCode + " for URL: " + getURL().toString());
             }
+        }
+
+        if (responseCode == HTTP_NOT_MODIFIED) {
+            return new ByteArrayInputStream(new byte[0]);
         }
 
         HttpEntity entity = response.getEntity();
