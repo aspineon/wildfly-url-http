@@ -246,6 +246,22 @@ class HttpClientURLConnection extends HttpURLConnection {
     }
 
     @Override
+    public InputStream getErrorStream() {
+        if (response == null || response.getStatusLine().getStatusCode() < 400) {
+            return null;
+        }
+        HttpEntity entity = response.getEntity();
+        if (entity != null) {
+            try {
+                return entity.getContent();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+        return null;
+    }
+
+    @Override
     public int getResponseCode() throws IOException {
         if (response == null) {
             doRequest();

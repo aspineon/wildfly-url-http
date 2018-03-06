@@ -31,6 +31,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.KeyStore;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
+import java.util.Base64;
 import java.util.Date;
 import java.util.List;
 
@@ -98,6 +99,11 @@ public class HttpTest {
                         }
                     }
                     exchange.getResponseSender().send("Testing response");
+                })
+                .addExactPath("error", exchange -> {
+                    exchange.setStatusCode(500);
+                    exchange.setReasonPhrase("Testing error");
+                    exchange.getResponseSender().send("Testing error output");
                 })
                 .addExactPath("basic-auth", exchange -> {
                     String authorization = exchange.getRequestHeaders().getFirst("Authorization");
@@ -216,6 +222,38 @@ public class HttpTest {
             Assert.assertEquals(-1, is.read());
         }
         conn3.disconnect();
+    }
+
+    @Test
+    public void testManualAuth() throws Exception {
+        URL url = new URL(TestingServer.getDefaultServerURL() + "/basic-auth");
+
+        URLConnection conn = url.openConnection();
+        String authorization = Base64.getEncoder().encodeToString("user:password".getBytes());
+        conn.setRequestProperty("Authorization", "Basic " + authorization);
+
+        try (BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8))) {
+            Assert.assertEquals("Basic dXNlcjpwYXNzd29yZA==", br.readLine());
+        }
+    }
+
+    @Test
+    public void testErrorMessage() throws Exception {
+        URL url = new URL(TestingServer.getDefaultServerURL() + "/error");
+
+        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+        Assert.assertEquals(500, conn.getResponseCode());
+        Assert.assertEquals("Testing error", conn.getResponseMessage());
+        try (BufferedReader br = new BufferedReader(new InputStreamReader(conn.getErrorStream(), StandardCharsets.UTF_8))) {
+            Assert.assertEquals("Testing error output", br.readLine());
+        }
+        try {
+            conn.getInputStream();
+            Assert.fail();
+        } catch (IOException e) {
+            Assert.assertEquals("Server returned HTTP response code: 500 for URL: " + url.toString(), e.getMessage());
+            e.printStackTrace();
+        }
     }
 
     @Test
