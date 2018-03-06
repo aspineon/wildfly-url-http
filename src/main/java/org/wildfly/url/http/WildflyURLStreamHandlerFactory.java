@@ -19,6 +19,7 @@
 package org.wildfly.url.http;
 
 import java.io.IOException;
+import java.net.Proxy;
 import java.net.URL;
 import java.net.URLConnection;
 import java.net.URLStreamHandler;
@@ -31,23 +32,42 @@ import java.net.URLStreamHandlerFactory;
  */
 public class WildflyURLStreamHandlerFactory implements URLStreamHandlerFactory {
 
-    private static URLStreamHandler httpHandler = new HttpURLStreamHandler();
+    private static URLStreamHandler httpHandler = new Handler(80);
+    private static URLStreamHandler httpsHandler = new Handler(443);
 
     @Override
     public URLStreamHandler createURLStreamHandler(String protocol) {
-        if (protocol.equalsIgnoreCase("http") || protocol.equalsIgnoreCase("https")) {
+        if (protocol.equalsIgnoreCase("http")) {
             return httpHandler;
+        }
+        if (protocol.equalsIgnoreCase("https")) {
+            return httpsHandler;
         }
         return null;
     }
 
-    private static class HttpURLStreamHandler extends URLStreamHandler {
+    private static class Handler extends URLStreamHandler {
+
+        private final int defaultPort;
+
+        Handler(int defaultPort) {
+            this.defaultPort = defaultPort;
+        }
+
+        @Override
+        protected int getDefaultPort() {
+            return defaultPort;
+        }
 
         @Override
         protected URLConnection openConnection(URL url) throws IOException {
-            return new HttpClientURLConnection(url);
+            return new HttpClientURLConnection(url, null);
         }
 
+        @Override
+        protected URLConnection openConnection(URL url, Proxy proxy) throws IOException {
+            return new HttpClientURLConnection(url, proxy);
+        }
     }
 
 }

@@ -24,10 +24,13 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
+import java.net.InetSocketAddress;
+import java.net.Proxy;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLConnection;
+import java.net.UnknownHostException;
 import java.security.GeneralSecurityException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -39,6 +42,7 @@ import javax.net.ssl.SSLContext;
 
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
+import org.apache.http.HttpHost;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpDelete;
@@ -66,10 +70,28 @@ class HttpClientURLConnection extends HttpURLConnection {
     private CloseableHttpClient client = null;
     private CloseableHttpResponse response;
     private ByteArrayOutputStream outputStream;
+    private HttpHost proxy;
 
-
-    HttpClientURLConnection(URL url) throws IOException {
+    HttpClientURLConnection(URL url, Proxy proxy) throws IOException {
         super(url);
+        setProxy(proxy);
+    }
+
+    private void setProxy(Proxy proxy) throws UnknownHostException {
+        if (proxy == null || proxy.type() == Proxy.Type.DIRECT) {
+            return;
+        }
+        if (proxy.type() == Proxy.Type.HTTP) {
+            if (proxy.address() instanceof InetSocketAddress) {
+                InetSocketAddress address = (InetSocketAddress) proxy.address();
+                if (address.getAddress() == null) {
+                    throw new UnknownHostException("Unable resolve proxy address");
+                }
+                this.proxy = new HttpHost(address.getAddress(), address.getPort(), "http");
+                return;
+            }
+        }
+        throw new UnsupportedOperationException("Unsupported type of proxy.");
     }
 
     private HttpUriRequest getRequest(URI uri) {
@@ -113,6 +135,7 @@ class HttpClientURLConnection extends HttpURLConnection {
                 .setConnectTimeout(getConnectTimeout())
                 .setSocketTimeout(getReadTimeout())
                 .setRedirectsEnabled(getInstanceFollowRedirects())
+                .setProxy(proxy)
                 .build();
 
         HttpClientBuilder builder = HttpClientBuilder.create()
@@ -161,7 +184,7 @@ class HttpClientURLConnection extends HttpURLConnection {
 
     @Override
     public boolean usingProxy() {
-        return false;
+        return proxy != null;
     }
 
     @Override
