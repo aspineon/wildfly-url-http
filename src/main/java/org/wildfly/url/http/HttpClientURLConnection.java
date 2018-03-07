@@ -24,7 +24,6 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.net.HttpURLConnection;
 import java.net.InetSocketAddress;
 import java.net.Proxy;
 import java.net.URI;
@@ -33,6 +32,7 @@ import java.net.URL;
 import java.net.URLConnection;
 import java.net.UnknownHostException;
 import java.security.GeneralSecurityException;
+import java.security.cert.Certificate;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
@@ -40,7 +40,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import javax.net.ssl.HostnameVerifier;
+import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLPeerUnverifiedException;
+import javax.net.ssl.SSLSession;
+import javax.net.ssl.SSLSocketFactory;
 
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
@@ -57,9 +62,14 @@ import org.apache.http.client.methods.HttpPut;
 import org.apache.http.client.methods.HttpTrace;
 import org.apache.http.client.methods.HttpUriRequest;
 import org.apache.http.client.utils.DateUtils;
+import org.apache.http.conn.ManagedHttpClientConnection;
+import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
+import org.apache.http.protocol.BasicHttpContext;
+import org.apache.http.protocol.HttpContext;
+import org.apache.http.protocol.HttpCoreContext;
 import org.wildfly.security.SecurityFactory;
 import org.wildfly.security.auth.client.AuthenticationContext;
 
@@ -68,21 +78,22 @@ import org.wildfly.security.auth.client.AuthenticationContext;
  *
  * @author Jan Kalina <jkalina@redhat.com>
  */
-class HttpClientURLConnection extends HttpURLConnection {
+class HttpClientURLConnection extends HttpsURLConnection {
 
-    private CloseableHttpClient client = null;
+    private final HttpHost proxy;
+    private CloseableHttpClient client;
     private CloseableHttpResponse response;
     private ByteArrayOutputStream outputStream;
-    private HttpHost proxy;
+    private SSLSession sslSession;
 
     HttpClientURLConnection(URL url, Proxy proxy) throws IOException {
         super(url);
-        setProxy(proxy);
+        this.proxy = convertProxy(proxy);
     }
 
-    private void setProxy(Proxy proxy) throws UnknownHostException {
+    private HttpHost convertProxy(Proxy proxy) throws UnknownHostException {
         if (proxy == null || proxy.type() == Proxy.Type.DIRECT) {
-            return;
+            return null;
         }
         if (proxy.type() == Proxy.Type.HTTP) {
             if (proxy.address() instanceof InetSocketAddress) {
@@ -90,8 +101,7 @@ class HttpClientURLConnection extends HttpURLConnection {
                 if (address.getAddress() == null) {
                     throw new UnknownHostException("Unable resolve proxy address");
                 }
-                this.proxy = new HttpHost(address.getAddress(), address.getPort(), "http");
-                return;
+                return new HttpHost(address.getAddress(), address.getPort(), "http");
             }
         }
         throw new UnsupportedOperationException("Unsupported type of proxy.");
@@ -149,17 +159,35 @@ class HttpClientURLConnection extends HttpURLConnection {
                 .setDefaultRequestConfig(config);
 
         if (uri.getScheme().equalsIgnoreCase("https")) {
-            try {
-                SecurityFactory<SSLContext> sslContextFactory = ElytronCredentialsProvider.client
-                        .getSSLContextFactory(uri, AuthenticationContext.captureCurrent(), null, null);
-                builder.setSSLContext(sslContextFactory.create());
-            } catch (GeneralSecurityException e) {
-                throw new IOException(e);
-            }
-        }
+            SSLSocketFactory socketFactory = getSSLSocketFactory();
 
-        client = builder.build();
-        response = client.execute(request);
+            if (socketFactory != getDefaultSSLSocketFactory()) {
+                HostnameVerifier hostnameVerifier = getHostnameVerifier();
+                if (hostnameVerifier == getDefaultHostnameVerifier()) {
+                    hostnameVerifier = null; // use HttpClient default
+                }
+                builder.setSSLSocketFactory(new SSLConnectionSocketFactory(socketFactory, hostnameVerifier));
+            } else {
+                try {
+                    SecurityFactory<SSLContext> sslContextFactory = ElytronCredentialsProvider.client
+                            .getSSLContextFactory(uri, AuthenticationContext.captureCurrent(), null, null);
+                    builder.setSSLContext(sslContextFactory.create());
+                } catch (GeneralSecurityException e) {
+                    throw new IOException(e);
+                }
+            }
+
+            client = builder.build();
+            HttpContext context = new BasicHttpContext();
+            response = client.execute(request, context);
+
+            ManagedHttpClientConnection routedConnection = (ManagedHttpClientConnection)
+                    context.getAttribute(HttpCoreContext.HTTP_CONNECTION);
+            sslSession = routedConnection.getSSLSession();
+        } else {
+            client = builder.build();
+            response = client.execute(request);
+        }
     }
 
     private void ensureResponse() {
@@ -317,4 +345,36 @@ class HttpClientURLConnection extends HttpURLConnection {
         return headers[n].getValue();
     }
 
+    @Override
+    public String getCipherSuite() {
+        if (response == null) {
+            throw new IllegalStateException("connection not yet open");
+        }
+        if (sslSession == null) {
+            throw new IllegalStateException("no SSL connection");
+        }
+        return sslSession.getCipherSuite();
+    }
+
+    @Override
+    public Certificate[] getLocalCertificates() {
+        if (response == null) {
+            throw new IllegalStateException("connection not yet open");
+        }
+        if (sslSession == null) {
+            throw new IllegalStateException("no SSL connection");
+        }
+        return sslSession.getLocalCertificates();
+    }
+
+    @Override
+    public Certificate[] getServerCertificates() throws SSLPeerUnverifiedException {
+        if (response == null) {
+            throw new IllegalStateException("connection not yet open");
+        }
+        if (sslSession == null) {
+            throw new IllegalStateException("no SSL connection");
+        }
+        return sslSession.getPeerCertificates();
+    }
 }

@@ -39,7 +39,7 @@ import org.wildfly.url.http.CompatibilityTest;
  */
 public class TestUtil {
 
-    public static SecurityFactory<SSLContext> getClientSslContext() throws Exception {
+    public static SecurityFactory<SSLContext> getClientSslContextFactory() throws Exception {
         X509TrustManager trustManager = null;
         X509ExtendedKeyManager keyManager = null;
 

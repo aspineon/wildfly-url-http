@@ -114,7 +114,7 @@ public class ElytronTest {
 
         AuthenticationContext.empty().withSsl(
                 MatchRule.ALL.matchPort(url.getPort()).matchHost(url.getHost()).matchProtocol(url.getProtocol()),
-                TestUtil.getClientSslContext()
+                TestUtil.getClientSslContextFactory()
         ).runExceptionAction(() -> {
 
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();

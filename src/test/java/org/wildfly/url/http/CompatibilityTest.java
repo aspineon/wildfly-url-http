@@ -28,18 +28,24 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLConnection;
 import java.nio.charset.StandardCharsets;
+import java.security.cert.Certificate;
+import java.security.cert.X509Certificate;
 import java.util.Base64;
 import java.util.Date;
 import java.util.List;
+
+import javax.net.ssl.HttpsURLConnection;
 
 import io.undertow.server.handlers.PathHandler;
 import io.undertow.util.HeaderValues;
 import io.undertow.util.HttpString;
 import org.apache.http.client.utils.DateUtils;
+import org.hamcrest.core.StringStartsWith;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.wildfly.url.http.utils.TestUtil;
 import org.wildfly.url.http.utils.TestingServer;
 
 /**
@@ -99,6 +105,13 @@ public class CompatibilityTest {
                         exchange.getResponseSender().send("Unauthorized");
                     } else {
                         exchange.getResponseSender().send(authorization);
+                    }
+                })
+                .addExactPath("ssl-auth", exchange -> {
+                    Certificate[] certificates = exchange.getConnection().getSslSessionInfo().getPeerCertificates();
+                    for (Certificate certificate : certificates) {
+                        String name = ((X509Certificate)certificate).getSubjectDN().getName();
+                        exchange.getResponseSender().send("(" + name + ")");
                     }
                 })
         );
@@ -231,8 +244,26 @@ public class CompatibilityTest {
             Assert.fail();
         } catch (IOException e) {
             Assert.assertEquals("Server returned HTTP response code: 500 for URL: " + url.toString(), e.getMessage());
-            e.printStackTrace();
         }
     }
 
+    @Test
+    public void testSsl() throws Exception {
+        URL url = new URL(TestingServer.getDefaultServerSSLURL() + "/ssl-auth");
+        HttpsURLConnection conn = (HttpsURLConnection) url.openConnection();
+
+        conn.setSSLSocketFactory(TestUtil.getClientSslContextFactory().create().getSocketFactory());
+        // keeping default HostnameVerifier
+
+        conn.connect();
+        Assert.assertThat(conn.getCipherSuite(), StringStartsWith.startsWith("TLS_"));
+        Assert.assertEquals(1, conn.getLocalCertificates().length);
+        Assert.assertEquals(1, conn.getServerCertificates().length);
+        Assert.assertEquals("CN=localhost, OU=OU, O=Org, L=City, ST=State, C=GB", conn.getPeerPrincipal().toString());
+        Assert.assertEquals("CN=Test Client, OU=OU, O=Org, L=City, ST=State, C=GB", conn.getLocalPrincipal().toString());
+
+        try (BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8))) {
+            Assert.assertEquals("(CN=Test Client, OU=OU, O=Org, L=City, ST=State, C=GB)", br.readLine());
+        }
+    }
 }
