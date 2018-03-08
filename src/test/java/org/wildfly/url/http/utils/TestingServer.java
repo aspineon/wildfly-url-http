@@ -143,6 +143,10 @@ public class TestingServer extends BlockJUnit4ClassRunner {
         return "https://" + NetworkUtils.formatPossibleIpv6Address(getHostAddress(DEFAULT)) + ":" + getHostSSLPort(DEFAULT);
     }
 
+    public static InetSocketAddress getDefaultServerSocketAddress() {
+        return new InetSocketAddress(getHostAddress(DEFAULT), getHostPort(DEFAULT));
+    }
+
     public TestingServer(Class<?> klass) throws InitializationError {
         super(klass);
     }

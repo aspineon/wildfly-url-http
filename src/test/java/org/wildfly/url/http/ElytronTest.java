@@ -22,6 +22,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
+import java.net.Proxy;
 import java.net.URL;
 import java.net.URLConnection;
 import java.nio.charset.StandardCharsets;
@@ -63,6 +64,16 @@ public class ElytronTest {
                         exchange.getResponseSender().send(authorization);
                     }
                 })
+                .addExactPath("proxy-auth", exchange -> {
+                    String authorization = exchange.getRequestHeaders().getFirst("Proxy-Authorization");
+                    if (authorization == null) {
+                        exchange.setStatusCode(407);
+                        exchange.getResponseHeaders().put(new HttpString("Proxy-Authenticate"), "BASIC realm=realm2");
+                        exchange.getResponseSender().send("Proxy Authentication Required");
+                    } else {
+                        exchange.getResponseSender().send(authorization);
+                    }
+                })
                 .addExactPath("ssl-auth", exchange -> {
                     Certificate[] certificates = exchange.getConnection().getSslSessionInfo().getPeerCertificates();
                     for (Certificate certificate : certificates) {
@@ -100,6 +111,27 @@ public class ElytronTest {
             conn.connect();
             try (BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8))) {
                 Assert.assertEquals("Basic dXNlcjI6cGFzc3dkMg==", br.readLine());
+            }
+            return null;
+        });
+    }
+
+    /**
+     * Test proxy authentication
+     */
+    @Test
+    public void testProxyAuth() throws Exception {
+        URL url = new URL(TestingServer.getDefaultServerURL() + "/proxy-auth");
+        Proxy proxy = new Proxy(Proxy.Type.HTTP, TestingServer.getDefaultServerSocketAddress());
+
+        AuthenticationContext.empty().with(
+                MatchRule.ALL.matchPort(url.getPort()).matchHost(url.getHost()).matchProtocol(url.getProtocol()),
+                AuthenticationConfiguration.empty().useName("userproxy").usePassword("passwdproxy")
+        ).runExceptionAction(() -> {
+            URLConnection conn = url.openConnection(proxy);
+            conn.connect();
+            try (BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8))) {
+                Assert.assertEquals("Basic dXNlcnByb3h5OnBhc3N3ZHByb3h5", br.readLine());
             }
             return null;
         });
