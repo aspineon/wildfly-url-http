@@ -45,13 +45,9 @@
 
     <properties>
         <version.org.wildfly.security.elytron>1.1.0.Final</version.org.wildfly.security.elytron>
-        <version.org.wildfly.common>1.2.0.Final</version.org.wildfly.common>
         <version.org.apache.httpcomponents.httpclient>4.5.2</version.org.apache.httpcomponents.httpclient>
-        <version.org.apache.httpcomponents.httpcore>4.4.4</version.org.apache.httpcomponents.httpcore>
         <version.junit.junit>4.12</version.junit.junit>
         <version.org.wildfly.checkstyle-config>1.0.6.Final</version.org.wildfly.checkstyle-config>
-        <version.org.kohsuke.metainf-services.metainf-services>1.7</version.org.kohsuke.metainf-services.metainf-services>
-        <version.org.jboss.logging>3.3.2.Final</version.org.jboss.logging>
         <version.io.undertow>2.0.0.Final</version.io.undertow>
 
         <test.level>INFO</test.level>
@@ -160,6 +156,12 @@
             <groupId>org.wildfly.security</groupId>
             <artifactId>wildfly-elytron</artifactId>
             <version>${version.org.wildfly.security.elytron}</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.wildfly.client</groupId>
+            <artifactId>wildfly-client-config</artifactId>
+            <version>1.0.0.Final</version>
             <scope>provided</scope>
         </dependency>
         <dependency>

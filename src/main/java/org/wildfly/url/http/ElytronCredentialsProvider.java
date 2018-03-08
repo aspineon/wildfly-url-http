@@ -19,7 +19,6 @@
 package org.wildfly.url.http;
 
 import static java.security.AccessController.doPrivileged;
-import static org.wildfly.security._private.ElytronMessages.log;
 
 import java.io.IOException;
 import java.net.URI;
@@ -39,6 +38,7 @@ import org.apache.http.auth.AuthScope;
 import org.apache.http.auth.Credentials;
 import org.apache.http.auth.UsernamePasswordCredentials;
 import org.apache.http.client.CredentialsProvider;
+import org.jboss.logging.Logger;
 import org.wildfly.security.auth.callback.CredentialCallback;
 import org.wildfly.security.auth.client.AuthenticationConfiguration;
 import org.wildfly.security.auth.client.AuthenticationContext;
@@ -59,6 +59,8 @@ class ElytronCredentialsProvider implements CredentialsProvider {
 
     static final AuthenticationContextConfigurationClient client = doPrivileged(AuthenticationContextConfigurationClient.ACTION);
 
+    private static final Logger log = Logger.getLogger("org.wildfly.url.http");
+
     @Override
     public Credentials getCredentials(AuthScope authscope) {
         final URI uri;
@@ -72,8 +74,12 @@ class ElytronCredentialsProvider implements CredentialsProvider {
             log.tracef("URISyntaxException getting URI from the requesting AuthScope [%s]:", authscope.toString(), e);
             return null;
         }
+        log.trace("Obtaining AuthenticationConfiguration for URI " + uri);
         authenticationConfiguration = client.getAuthenticationConfiguration(uri, context);
-        if (authenticationConfiguration == null) return null;
+        if (authenticationConfiguration == null) {
+            log.trace("No AuthenticationConfiguration for URI " + uri);
+            return null;
+        }
         final CallbackHandler callbackHandler = client.getCallbackHandler(authenticationConfiguration);
         final NameCallback nameCallback = new NameCallback("Username");
         final CredentialCallback credentialCallback = new CredentialCallback(PasswordCredential.class);
@@ -113,17 +119,18 @@ class ElytronCredentialsProvider implements CredentialsProvider {
             return null;
         }
         final String name = nameCallback.getName();
+        log.tracef("Authenticating against %s: username = %s  password = %b", uri, name, password != null);
         if (name == null || password == null) return null;
         return new UsernamePasswordCredentials(name, new String(password));
     }
 
     @Override
     public void setCredentials(AuthScope authscope, Credentials credentials) {
-        throw new IllegalStateException("unsupported");
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public void clear() {
-        throw new IllegalStateException("unsupported");
+        throw new UnsupportedOperationException();
     }
 }

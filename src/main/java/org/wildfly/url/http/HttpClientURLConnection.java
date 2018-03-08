@@ -351,7 +351,7 @@ class HttpClientURLConnection extends HttpsURLConnection {
             throw new IllegalStateException("connection not yet open");
         }
         if (sslSession == null) {
-            throw new IllegalStateException("no SSL connection");
+            throw new UnsupportedOperationException("not a SSL connection");
         }
         return sslSession.getCipherSuite();
     }
@@ -362,7 +362,7 @@ class HttpClientURLConnection extends HttpsURLConnection {
             throw new IllegalStateException("connection not yet open");
         }
         if (sslSession == null) {
-            throw new IllegalStateException("no SSL connection");
+            throw new UnsupportedOperationException("not a SSL connection");
         }
         return sslSession.getLocalCertificates();
     }
@@ -373,7 +373,7 @@ class HttpClientURLConnection extends HttpsURLConnection {
             throw new IllegalStateException("connection not yet open");
         }
         if (sslSession == null) {
-            throw new IllegalStateException("no SSL connection");
+            throw new UnsupportedOperationException("not a SSL connection");
         }
         return sslSession.getPeerCertificates();
     }
