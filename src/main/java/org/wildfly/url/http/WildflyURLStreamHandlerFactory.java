@@ -32,8 +32,8 @@ import java.net.URLStreamHandlerFactory;
  */
 public class WildflyURLStreamHandlerFactory implements URLStreamHandlerFactory {
 
-    private static URLStreamHandler httpHandler = new Handler(80);
-    private static URLStreamHandler httpsHandler = new Handler(443);
+    private static final URLStreamHandler httpHandler = new Handler(80);
+    private static final URLStreamHandler httpsHandler = new Handler(443);
 
     @Override
     public URLStreamHandler createURLStreamHandler(String protocol) {

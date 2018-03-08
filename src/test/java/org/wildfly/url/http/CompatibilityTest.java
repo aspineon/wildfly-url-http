@@ -35,6 +35,7 @@ import java.util.Date;
 import java.util.List;
 
 import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLPeerUnverifiedException;
 
 import io.undertow.server.handlers.PathHandler;
 import io.undertow.util.HeaderValues;
@@ -265,5 +266,19 @@ public class CompatibilityTest {
         try (BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8))) {
             Assert.assertEquals("(CN=Test Client, OU=OU, O=Org, L=City, ST=State, C=GB)", br.readLine());
         }
+    }
+
+    @Test
+    public void testSslHostnameVerification() throws Exception {
+        URL url = new URL(TestingServer.getDefaultServerSSLURL() + "/ssl-auth");
+        HttpsURLConnection conn = (HttpsURLConnection) url.openConnection();
+
+        conn.setSSLSocketFactory(TestUtil.getClientSslContextFactory().create().getSocketFactory());
+        conn.setHostnameVerifier((s, sslSession) -> false);
+
+        try {
+            conn.connect();
+            Assert.fail();
+        } catch (SSLPeerUnverifiedException ignore) {}
     }
 }
