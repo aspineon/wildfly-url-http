@@ -156,7 +156,8 @@ class HttpClientURLConnection extends HttpsURLConnection {
 
         HttpClientBuilder builder = HttpClientBuilder.create()
                 .setDefaultCredentialsProvider(ElytronCredentialsProvider.INSTANCE)
-                .setDefaultRequestConfig(config);
+                .setDefaultRequestConfig(config)
+                .disableContentCompression();
 
         if (uri.getScheme().equalsIgnoreCase("https")) {
             SSLSocketFactory socketFactory = getSSLSocketFactory();

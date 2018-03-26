@@ -38,6 +38,7 @@ import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLPeerUnverifiedException;
 
 import io.undertow.server.handlers.PathHandler;
+import io.undertow.server.handlers.encoding.EncodingHandler;
 import io.undertow.util.HeaderValues;
 import io.undertow.util.HttpString;
 import org.apache.http.client.utils.DateUtils;
@@ -61,7 +62,7 @@ public class CompatibilityTest {
     public static void setup() throws IOException {
         URL.setURLStreamHandlerFactory(new WildflyURLStreamHandlerFactory());
 
-        TestingServer.setRootHandler(new PathHandler()
+        TestingServer.setRootHandler(new EncodingHandler.Builder().build(null).wrap(new PathHandler()
                 .addExactPath("header", exchange -> {
                     Assert.assertEquals(0, exchange.getRequestHeaders().get("RequiredNoValueHeader", 0).length());
                     HeaderValues values = exchange.getRequestHeaders().get("TestingRequestHeader");
@@ -93,6 +94,9 @@ public class CompatibilityTest {
                     }
                     exchange.getResponseSender().send("Testing response");
                 })
+                .addExactPath("compressed", exchange -> {
+                    exchange.getResponseSender().send("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+                })
                 .addExactPath("error", exchange -> {
                     exchange.setStatusCode(500);
                     exchange.setReasonPhrase("Testing error");
@@ -115,7 +119,7 @@ public class CompatibilityTest {
                         exchange.getResponseSender().send("(" + name + ")");
                     }
                 })
-        );
+        ));
     }
 
     /**
@@ -246,6 +250,30 @@ public class CompatibilityTest {
         } catch (IOException e) {
             Assert.assertEquals("Server returned HTTP response code: 500 for URL: " + url.toString(), e.getMessage());
         }
+    }
+
+    @Test
+    public void testGzip() throws Exception {
+        URL url = new URL(TestingServer.getDefaultServerURL() + "/compressed");
+
+        HttpURLConnection conn1 = (HttpURLConnection) url.openConnection();
+        int uncompressedSize = conn1.getContentLength();
+        String uncompressedMessage;
+        try (BufferedReader br = new BufferedReader(new InputStreamReader(conn1.getInputStream(), StandardCharsets.UTF_8))) {
+            uncompressedMessage = br.readLine();
+        }
+
+        HttpURLConnection conn2 = (HttpURLConnection) url.openConnection();
+        conn2.setRequestProperty("Accept-Encoding", "gzip");
+        int compressedSize = conn2.getContentLength();
+        String compressedMessage;
+        try (BufferedReader br = new BufferedReader(new InputStreamReader(conn2.getInputStream(), StandardCharsets.UTF_8))) {
+            compressedMessage = br.readLine();
+        }
+
+        Assert.assertTrue(uncompressedSize == uncompressedMessage.length());
+        Assert.assertTrue(compressedSize == compressedMessage.length());
+        Assert.assertTrue(compressedSize < uncompressedSize);
     }
 
     @Test
