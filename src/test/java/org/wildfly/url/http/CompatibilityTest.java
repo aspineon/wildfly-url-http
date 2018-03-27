@@ -208,6 +208,20 @@ public class CompatibilityTest {
     }
 
     @Test
+    public void testPost() throws Exception {
+        URL url = new URL(TestingServer.getDefaultServerURL() + "/put");
+
+        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+        // no setRequestMethod should default to POST when outputStream used
+        conn.setDoOutput(true);
+        conn.getOutputStream().write(new byte[]{ 1, 2, 3 });
+
+        try (BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8))) {
+            Assert.assertEquals("Received: 3", br.readLine());
+        }
+    }
+
+    @Test
     public void testModifiedSince() throws Exception {
         URL url = new URL(TestingServer.getDefaultServerURL() + "/get");
 

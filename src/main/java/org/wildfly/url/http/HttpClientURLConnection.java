@@ -227,6 +227,9 @@ class HttpClientURLConnection extends HttpsURLConnection {
 
     @Override
     public OutputStream getOutputStream() throws IOException {
+        if ("GET".equals(getRequestMethod())) {
+            setRequestMethod("POST");
+        }
         if (outputStream == null) {
             outputStream = new ByteArrayOutputStream();
         }
