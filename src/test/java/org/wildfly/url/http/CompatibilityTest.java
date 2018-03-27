@@ -193,6 +193,21 @@ public class CompatibilityTest {
     }
 
     @Test
+    public void testPutWithLength() throws Exception {
+        URL url = new URL(TestingServer.getDefaultServerURL() + "/put");
+
+        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+        conn.setRequestMethod("PUT");
+        conn.setDoOutput(true);
+        conn.setRequestProperty("Content-Length", "5");
+        conn.getOutputStream().write(new byte[]{ 1, 2, 3 });
+
+        try (BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8))) {
+            Assert.assertEquals("Received: 3", br.readLine());
+        }
+    }
+
+    @Test
     public void testModifiedSince() throws Exception {
         URL url = new URL(TestingServer.getDefaultServerURL() + "/get");
 
@@ -264,13 +279,14 @@ public class CompatibilityTest {
         }
 
         HttpURLConnection conn2 = (HttpURLConnection) url.openConnection();
-        conn2.setRequestProperty("Accept-Encoding", "gzip");
+        conn2.setRequestProperty("Accept-Encoding", "gzip;q=1.0, identity; q=0.5, *;q=0");
         int compressedSize = conn2.getContentLength();
         String compressedMessage;
         try (BufferedReader br = new BufferedReader(new InputStreamReader(conn2.getInputStream(), StandardCharsets.UTF_8))) {
             compressedMessage = br.readLine();
         }
 
+        Assert.assertEquals("gzip", conn2.getHeaderFields().get("Content-Encoding").get(0));
         Assert.assertTrue(uncompressedSize == uncompressedMessage.length());
         Assert.assertTrue(compressedSize == compressedMessage.length());
         Assert.assertTrue(compressedSize < uncompressedSize);

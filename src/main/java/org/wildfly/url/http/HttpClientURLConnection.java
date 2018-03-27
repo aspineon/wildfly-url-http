@@ -68,6 +68,7 @@ import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.protocol.BasicHttpContext;
+import org.apache.http.protocol.HTTP;
 import org.apache.http.protocol.HttpContext;
 import org.apache.http.protocol.HttpCoreContext;
 import org.wildfly.security.SecurityFactory;
@@ -141,6 +142,8 @@ class HttpClientURLConnection extends HttpsURLConnection {
 
         if (outputStream != null) {
             if (request instanceof HttpEntityEnclosingRequestBase) { // POST or PUT
+                request.removeHeaders(HTTP.CONTENT_LEN); // would be in collision with set entity
+                request.removeHeaders(HTTP.TRANSFER_ENCODING);
                 ((HttpEntityEnclosingRequestBase) request).setEntity(new ByteArrayEntity(outputStream.toByteArray()));
             } else {
                 throw new IllegalStateException("Used HTTP request method does not support OutputStream");
