@@ -21,6 +21,7 @@ package org.wildfly.url.http;
 import static java.net.HttpURLConnection.HTTP_NOT_MODIFIED;
 
 import java.io.BufferedReader;
+import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -80,6 +81,7 @@ public class CompatibilityTest {
                     }
                 })
                 .addExactPath("put", exchange -> {
+                    exchange.getResponseHeaders().put(new HttpString("Set-Cookie"), "JSESSIONID=secretsessionid; path=/put");
                     exchange.getResponseSender().send("Received: " + exchange.getRequestContentLength());
                 })
                 .addExactPath("get", exchange -> {
@@ -338,5 +340,48 @@ public class CompatibilityTest {
             conn.connect();
             Assert.fail();
         } catch (SSLPeerUnverifiedException ignore) {}
+    }
+
+
+    /* Test of URL as used in EE TCK tests util */
+    @Test
+    public void testTck1() throws Exception {
+        URL url = new URL(TestingServer.getDefaultServerURL() + "/put");
+
+        URLConnection urlConn = url.openConnection();
+        urlConn.setDoOutput(true);
+        urlConn.setDoInput(true);
+        urlConn.setUseCaches(false);
+        DataOutputStream out = new DataOutputStream(urlConn.getOutputStream());
+        out.writeBytes("input string");
+        out.flush();
+        out.close();
+
+        StringBuffer content;
+        BufferedReader in;
+        InputStream instream = urlConn.getInputStream();
+
+        String jsessionHeader = null;
+        for (int i = 0;; i++) {
+            String header = urlConn.getHeaderField(i);
+            if (header == null) break;
+            if (header.contains("JSESSIONID")) jsessionHeader = header;
+        }
+        Assert.assertEquals("JSESSIONID=secretsessionid; path=/put", jsessionHeader);
+
+        InputStreamReader inreader = new InputStreamReader(instream);
+        in = new BufferedReader(inreader);
+        content = new StringBuffer(1024);
+        char[] chars = new char[1024];
+        int length = 0;
+        while (length != -1) {
+            content.append(chars, 0, length);
+            length = in.read(chars, 0, chars.length);
+        }
+        instream.close();
+        inreader.close();
+        in.close();
+
+        Assert.assertEquals("Received: 12", content.toString());
     }
 }

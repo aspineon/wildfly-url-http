@@ -100,16 +100,16 @@ class HttpClientURLConnection extends HttpsURLConnection {
             if (proxy.address() instanceof InetSocketAddress) {
                 InetSocketAddress address = (InetSocketAddress) proxy.address();
                 if (address.getAddress() == null) {
-                    throw new UnknownHostException("Unable resolve proxy address");
+                    throw new UnknownHostException("Unable resolve proxy address for " + proxy);
                 }
                 return new HttpHost(address.getAddress(), address.getPort(), "http");
             }
         }
-        throw new UnsupportedOperationException("Unsupported type of proxy.");
+        throw new UnsupportedOperationException("Unsupported type of proxy: " + proxy.type());
     }
 
     private HttpUriRequest getRequest(URI uri) {
-        switch (getRequestMethod()) {
+        switch (method) {
             case "GET": return new HttpGet(uri);
             case "POST": return new HttpPost(uri);
             case "HEAD": return new HttpHead(uri);
@@ -117,7 +117,7 @@ class HttpClientURLConnection extends HttpsURLConnection {
             case "PUT": return new HttpPut(uri);
             case "DELETE": return new HttpDelete(uri);
             case "TRACE": return new HttpTrace(uri);
-            default: throw new IllegalStateException("Unsupported HTTP request method");
+            default: throw new IllegalStateException("Unsupported HTTP request method: " + method);
         }
     }
 
@@ -192,6 +192,9 @@ class HttpClientURLConnection extends HttpsURLConnection {
             client = builder.build();
             response = client.execute(request);
         }
+
+        responseCode = response.getStatusLine().getStatusCode();
+        responseMessage = response.getStatusLine().getReasonPhrase();
     }
 
     private void ensureResponse() {
@@ -227,8 +230,8 @@ class HttpClientURLConnection extends HttpsURLConnection {
 
     @Override
     public OutputStream getOutputStream() throws IOException {
-        if ("GET".equals(getRequestMethod())) {
-            setRequestMethod("POST");
+        if ("GET".equals(method)) {
+            method = "POST";
         }
         if (outputStream == null) {
             outputStream = new ByteArrayOutputStream();
@@ -246,7 +249,7 @@ class HttpClientURLConnection extends HttpsURLConnection {
     @Override
     public void setFixedLengthStreamingMode(long contentLength) {
         if (contentLength > Integer.MAX_VALUE) {
-            throw new IllegalArgumentException("Too long content length");
+            throw new IllegalArgumentException("Too long content length: " + contentLength);
         }
         if (outputStream == null) {
             outputStream = new ByteArrayOutputStream((int) contentLength);
@@ -259,13 +262,11 @@ class HttpClientURLConnection extends HttpsURLConnection {
             doRequest();
         }
 
-        int responseCode = response.getStatusLine().getStatusCode();
-
         if (responseCode >= 400) {
             if (responseCode == HTTP_NOT_FOUND || responseCode == HTTP_GONE) {
                 throw new FileNotFoundException(url.toString());
             } else {
-                throw new IOException("Server returned HTTP response code: " + responseCode + " for URL: " + getURL().toString());
+                throw new IOException("Server returned HTTP response code: " + responseCode + " for URL: " + url.toString());
             }
         }
 
@@ -275,14 +276,14 @@ class HttpClientURLConnection extends HttpsURLConnection {
 
         HttpEntity entity = response.getEntity();
         if (entity == null) {
-            throw new IOException("Used HTTP request method does not provide InputStream");
+            throw new IOException("Used HTTP request method " + method + " does not provide InputStream");
         }
         return entity.getContent();
     }
 
     @Override
     public InputStream getErrorStream() {
-        if (response == null || response.getStatusLine().getStatusCode() < 400) {
+        if (response == null || responseCode < 400) {
             return null;
         }
         HttpEntity entity = response.getEntity();
@@ -302,7 +303,7 @@ class HttpClientURLConnection extends HttpsURLConnection {
             doRequest();
         }
 
-        return response.getStatusLine().getStatusCode();
+        return responseCode;
     }
 
     @Override
@@ -311,7 +312,7 @@ class HttpClientURLConnection extends HttpsURLConnection {
             doRequest();
         }
 
-        return response.getStatusLine().getReasonPhrase();
+        return responseMessage;
     }
 
     @Override
